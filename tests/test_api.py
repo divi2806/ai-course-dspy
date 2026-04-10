@@ -1,9 +1,7 @@
-"""Integration tests for all API endpoints (in-memory DB, mocked pipeline)."""
-
 from __future__ import annotations
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 import pytest_asyncio
@@ -12,10 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.core.database import Base, get_db
 from app.main import app
-
-# ---------------------------------------------------------------------------
-# Test database (SQLite in-memory)
-# ---------------------------------------------------------------------------
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -51,16 +45,12 @@ async def client():
         yield ac
 
 
-# ---------------------------------------------------------------------------
-# Sample data
-# ---------------------------------------------------------------------------
-
 SAMPLE_TEXT = (
     "Python is a high-level programming language. "
     "It supports object-oriented, procedural, and functional programming. "
     "Recursion is a method where a function calls itself to solve sub-problems. "
     "Dynamic programming breaks problems into overlapping sub-problems. "
-) * 15  # ensure multiple chunks
+) * 15
 
 SAMPLE_COURSE = {
     "title": "Python Fundamentals",
@@ -77,6 +67,12 @@ SAMPLE_COURSE = {
 }
 
 
+def _mock_rlm(course_data: dict):
+    mock_rlm = MagicMock()
+    mock_rlm.return_value = course_data
+    return patch("app.services.course_generator.run_rlm", return_value=course_data)
+
+
 # ---------------------------------------------------------------------------
 # Health
 # ---------------------------------------------------------------------------
@@ -89,7 +85,7 @@ async def test_health(client: AsyncClient):
 
 
 # ---------------------------------------------------------------------------
-# Ingestion – text
+# Ingestion
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
@@ -99,7 +95,7 @@ async def test_ingest_text_success(client: AsyncClient):
     data = resp.json()
     assert "document_id" in data
     assert data["source_type"] == "text"
-    assert data["chunk_count"] >= 1
+    assert data["word_count"] > 0
     assert data["title"] == "Test Doc"
 
 
@@ -114,10 +110,6 @@ async def test_ingest_text_empty(client: AsyncClient):
     resp = await client.post("/ingest/text", json={"text": "   " * 20})
     assert resp.status_code == 400
 
-
-# ---------------------------------------------------------------------------
-# Ingestion – PDF
-# ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 async def test_ingest_pdf_wrong_extension(client: AsyncClient):
@@ -153,23 +145,15 @@ async def test_ingest_pdf_success(client: AsyncClient, tmp_path):
 # Course generation
 # ---------------------------------------------------------------------------
 
-def _mock_pipeline(course_data: dict):
-    """Return a context manager that patches get_pipeline."""
-    mock_pipe = MagicMock()
-    mock_pipe.return_value = course_data
-    return patch("app.services.course_generator.get_pipeline", return_value=mock_pipe)
-
-
 @pytest.mark.asyncio
 async def test_generate_course_success(client: AsyncClient):
-    # Ingest first
     ingest_resp = await client.post(
         "/ingest/text", json={"text": SAMPLE_TEXT, "title": "Python 101"}
     )
     assert ingest_resp.status_code == 201
     doc_id = ingest_resp.json()["document_id"]
 
-    with _mock_pipeline(SAMPLE_COURSE):
+    with _mock_rlm(SAMPLE_COURSE):
         resp = await client.post(
             "/generate-course",
             json={"document_id": doc_id, "difficulty": "easy"},
@@ -186,7 +170,7 @@ async def test_generate_course_success(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_generate_course_unknown_document(client: AsyncClient):
-    with _mock_pipeline(SAMPLE_COURSE):
+    with _mock_rlm(SAMPLE_COURSE):
         resp = await client.post(
             "/generate-course",
             json={"document_id": "non-existent-id", "difficulty": "medium"},
@@ -209,13 +193,12 @@ async def test_generate_course_invalid_difficulty(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_get_course_success(client: AsyncClient):
-    # Ingest → generate → retrieve
     ingest_resp = await client.post(
         "/ingest/text", json={"text": SAMPLE_TEXT, "title": "Retrieve Test"}
     )
     doc_id = ingest_resp.json()["document_id"]
 
-    with _mock_pipeline(SAMPLE_COURSE):
+    with _mock_rlm(SAMPLE_COURSE):
         gen_resp = await client.post(
             "/generate-course",
             json={"document_id": doc_id, "difficulty": "hard"},

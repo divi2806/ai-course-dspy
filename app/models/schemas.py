@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field
 
 
 # ---------------------------------------------------------------------------
@@ -21,8 +21,8 @@ class IngestYouTubeRequest(BaseModel):
 class IngestResponse(BaseModel):
     document_id: str
     source_type: str
-    chunk_count: int
     title: str | None
+    word_count: int
     message: str
 
 
@@ -56,11 +56,11 @@ class CourseResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Pipeline internals (not exposed directly via API)
+# Internal
 # ---------------------------------------------------------------------------
 
 class IngestedContent(BaseModel):
     source_type: Literal["pdf", "text", "youtube_video", "youtube_playlist"]
     source_ref: str
     title: str | None
-    chunks: list[str]
+    full_text: str

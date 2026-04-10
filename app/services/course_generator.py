@@ -7,10 +7,40 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.db import Course, Document
 from app.models.schemas import CourseResponse, Module
-from app.services.pipeline.course_pipeline import get_pipeline, parse_modules
-from app.services.vector_store import vector_store
+from app.services.pipeline.rlm_pipeline import run_rlm
 
 log = logging.getLogger(__name__)
+
+
+def _parse_modules(modules_data: list[dict]) -> list[Module]:
+    result: list[Module] = []
+    for item in modules_data:
+        try:
+            # LLMs sometimes use alternate field names — try all known variants
+            explanation = (
+                item.get("explanation")
+                or item.get("detailed_explanation")
+                or item.get("content")
+                or item.get("description")
+                or ""
+            )
+            examples = (
+                item.get("examples")
+                or item.get("example_list")
+                or []
+            )
+            result.append(
+                Module(
+                    title=item.get("title", "Untitled Module"),
+                    explanation=explanation,
+                    examples=examples,
+                    code_snippets=item.get("code_snippets", []),
+                    key_takeaways=item.get("key_takeaways", []),
+                )
+            )
+        except Exception as exc:
+            log.warning("Skipping malformed module: %s", exc)
+    return result
 
 
 async def generate_course(
@@ -23,17 +53,16 @@ async def generate_course(
     if document is None:
         raise ValueError(f"Document not found: {document_id}")
 
-    chunks = vector_store.get_chunks(document_id)
-    if not chunks:
-        raise ValueError(f"No chunks found for document {document_id}. Re-ingest the document.")
+    if not document.content:
+        raise ValueError(f"No content found for document {document_id}. Re-ingest the document.")
 
-    log.info("Running pipeline on document %s (%d chunks, difficulty=%s)", document_id, len(chunks), difficulty)
+    log.info("Running RLM on document %s (difficulty=%s)", document_id, difficulty)
 
-    raw_course = get_pipeline()(text="\n\n".join(chunks), difficulty=difficulty)
+    raw_course = run_rlm(document_text=document.content, difficulty=difficulty)
 
     title = raw_course.get("title") or f"{document.title or 'Course'} ({difficulty})"
     summary = raw_course.get("summary") or ""
-    modules: list[Module] = parse_modules(raw_course.get("modules") or [])
+    modules = _parse_modules(raw_course.get("modules") or [])
 
     course = Course(
         document_id=document_id,

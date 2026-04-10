@@ -9,7 +9,6 @@ from app.core.database import get_db
 from app.models.db import Document
 from app.models.schemas import IngestResponse, IngestTextRequest, IngestYouTubeRequest
 from app.services.ingestion import ingest_pdf, ingest_text, ingest_youtube
-from app.services.vector_store import vector_store
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/ingest", tags=["Ingestion"])
@@ -20,11 +19,10 @@ async def _persist(content, db: AsyncSession) -> Document:
         source_type=content.source_type,
         source_ref=content.source_ref,
         title=content.title,
-        chunk_count=len(content.chunks),
+        content=content.full_text,
     )
     db.add(doc)
     await db.flush()
-    vector_store.add_chunks(doc.id, content.chunks)
     return doc
 
 
@@ -56,9 +54,9 @@ async def ingest_pdf_endpoint(
     return IngestResponse(
         document_id=doc.id,
         source_type=doc.source_type,
-        chunk_count=doc.chunk_count,
         title=doc.title,
-        message=f"PDF ingested successfully ({doc.chunk_count} chunks).",
+        word_count=len(doc.content.split()),
+        message="PDF ingested successfully.",
     )
 
 
@@ -77,9 +75,9 @@ async def ingest_text_endpoint(
     return IngestResponse(
         document_id=doc.id,
         source_type=doc.source_type,
-        chunk_count=doc.chunk_count,
         title=doc.title,
-        message=f"Text ingested successfully ({doc.chunk_count} chunks).",
+        word_count=len(doc.content.split()),
+        message="Text ingested successfully.",
     )
 
 
@@ -98,7 +96,7 @@ async def ingest_youtube_endpoint(
     return IngestResponse(
         document_id=doc.id,
         source_type=doc.source_type,
-        chunk_count=doc.chunk_count,
         title=doc.title,
-        message=f"YouTube content ingested successfully ({doc.chunk_count} chunks).",
+        word_count=len(doc.content.split()),
+        message="YouTube content ingested successfully.",
     )
