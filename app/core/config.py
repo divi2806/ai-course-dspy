@@ -18,11 +18,13 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # LLM
-    llm_provider: Literal["openai", "anthropic", "ollama", "gemini"] = "openai"
+    llm_provider: Literal["openai", "anthropic", "ollama", "gemini", "opencode"] = "openai"
     llm_model: str = "gpt-4o-mini"
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
+    opencode_api_key: str = Field(default="", alias="OPENCODE_API_KEY")
+    opencode_base_url: str = "https://opencode.ai/zen/v1"
     ollama_base_url: str = "http://localhost:11434"
 
     # Database

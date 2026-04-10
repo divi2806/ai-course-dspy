@@ -83,6 +83,12 @@ def _configure_lm() -> None:
         lm = dspy.LM(f"anthropic/{model}", api_key=settings.anthropic_api_key)
     elif provider == "gemini":
         lm = dspy.LM(f"gemini/{model}", api_key=settings.gemini_api_key)
+    elif provider == "opencode":
+        lm = dspy.LM(
+            f"openai/{model}",
+            api_key=settings.opencode_api_key,
+            api_base=settings.opencode_base_url,
+        )
     elif provider == "ollama":
         lm = dspy.LM(f"ollama_chat/{model}", api_base=settings.ollama_base_url)
     else:
