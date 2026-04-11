@@ -37,11 +37,15 @@ class CourseSignature(dspy.Signature):
     PHASE 2 — CONSTRUCTION (build the course in the REPL before submitting):
       For each topic in `modules_data`, construct a module dict with these EXACT keys:
         - "title": concise module title
-        - "explanation": 3-5 sentence detailed paragraph covering the concept thoroughly.
-                         DO NOT leave this empty. Draw directly from the document text.
+        - "learning_objectives": list of 2-3 measurable outcomes ("After this module, you will be able to...")
+        - "explanation": 3-5 sentence detailed paragraph. Draw directly from the document. NEVER leave empty.
+        - "analogies": list of 1-2 simple analogies that make the concept intuitive for the target difficulty
         - "examples": list of 2-3 concrete, specific examples taken from or inspired by the document
+        - "real_world_applications": list of 2-3 real-world use cases where this concept is applied
         - "code_snippets": list of code examples if the document contains code, else []
+        - "common_misconceptions": list of 2-3 things learners commonly get wrong about this topic, with corrections
         - "key_takeaways": list of 3-5 precise bullet points summarising the module
+        - "glossary": list of {"term": "...", "definition": "..."} for key terms introduced in this module
 
       Build the final course dict in the REPL:
         course = {
@@ -63,12 +67,18 @@ class CourseSignature(dspy.Signature):
     )
     course_json: str = dspy.OutputField(
         desc=(
-            'Valid JSON string with EXACTLY these keys: '
-            '{"title": "...", "summary": "...", "modules": ['
-            '{"title": "...", "explanation": "detailed 3-5 sentence paragraph, never empty", '
-            '"examples": ["specific example 1", "specific example 2"], '
-            '"code_snippets": ["..."], "key_takeaways": ["point 1", "point 2", "point 3"]}]}. '
-            'Double quotes only. No markdown fences. No Python dict literals.'
+            'Valid JSON with keys: {"title": "...", "summary": "...", "modules": [{'
+            '"title": "...", '
+            '"learning_objectives": ["After this module you will be able to..."], '
+            '"explanation": "detailed 3-5 sentence paragraph, never empty", '
+            '"analogies": ["simple analogy..."], '
+            '"examples": ["specific example..."], '
+            '"real_world_applications": ["application..."], '
+            '"code_snippets": [], '
+            '"common_misconceptions": ["Misconception: X — Reality: Y"], '
+            '"key_takeaways": ["point..."], '
+            '"glossary": [{"term": "...", "definition": "..."}]'
+            '}]}. Double quotes only. No markdown fences. No Python dict literals.'
         )
     )
 

@@ -49,3 +49,21 @@ class Course(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     document: Mapped["Document"] = relationship("Document", back_populates="courses")
+    evaluations: Mapped[list["Evaluation"]] = relationship(
+        "Evaluation", back_populates="course", cascade="all, delete-orphan"
+    )
+
+
+class Evaluation(Base):
+    __tablename__ = "evaluations"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    course_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("courses.id", ondelete="CASCADE"), nullable=False
+    )
+    questions_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    course: Mapped["Course"] = relationship("Course", back_populates="evaluations")

@@ -6,17 +6,24 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.db import Course, Document
-from app.models.schemas import CourseResponse, Module
+from app.models.schemas import CourseResponse, GlossaryTerm, Module
 from app.services.pipeline.rlm_pipeline import run_rlm
 
 log = logging.getLogger(__name__)
+
+
+def _parse_glossary(raw: list) -> list[GlossaryTerm]:
+    terms = []
+    for entry in raw:
+        if isinstance(entry, dict) and "term" in entry and "definition" in entry:
+            terms.append(GlossaryTerm(term=entry["term"], definition=entry["definition"]))
+    return terms
 
 
 def _parse_modules(modules_data: list[dict]) -> list[Module]:
     result: list[Module] = []
     for item in modules_data:
         try:
-            # LLMs sometimes use alternate field names — try all known variants
             explanation = (
                 item.get("explanation")
                 or item.get("detailed_explanation")
@@ -24,18 +31,19 @@ def _parse_modules(modules_data: list[dict]) -> list[Module]:
                 or item.get("description")
                 or ""
             )
-            examples = (
-                item.get("examples")
-                or item.get("example_list")
-                or []
-            )
+            examples = item.get("examples") or item.get("example_list") or []
             result.append(
                 Module(
                     title=item.get("title", "Untitled Module"),
+                    learning_objectives=item.get("learning_objectives", []),
                     explanation=explanation,
+                    analogies=item.get("analogies", []),
                     examples=examples,
+                    real_world_applications=item.get("real_world_applications", []),
                     code_snippets=item.get("code_snippets", []),
+                    common_misconceptions=item.get("common_misconceptions", []),
                     key_takeaways=item.get("key_takeaways", []),
+                    glossary=_parse_glossary(item.get("glossary", [])),
                 )
             )
         except Exception as exc:
