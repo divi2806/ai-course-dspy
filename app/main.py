@@ -1,10 +1,13 @@
 import logging
 import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.routes.course import router as course_router
 from app.api.routes.evaluate import router as evaluate_router
@@ -70,3 +73,12 @@ app.include_router(evaluate_router)
 @app.get("/health", tags=["Health"])
 async def health() -> dict:
     return {"status": "ok", "env": settings.app_env}
+
+
+_FRONTEND = Path(__file__).parent.parent / "frontend"
+if _FRONTEND.exists():
+    app.mount("/static", StaticFiles(directory=str(_FRONTEND)), name="static")
+
+    @app.get("/", include_in_schema=False)
+    async def serve_frontend() -> FileResponse:
+        return FileResponse(str(_FRONTEND / "index.html"))
