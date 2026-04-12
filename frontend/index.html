@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AutoCourse AI</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3349;
+      --accent: #6c63ff;
+      --accent-hover: #7d75ff;
+      --text: #e8eaf6;
+      --text-muted: #8b90b0;
+      --green: #4caf82;
+      --red: #f06292;
+      --yellow: #ffd54f;
+      --radius: 10px;
+      --font: 'Inter', system-ui, sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    header {
+      padding: 20px 32px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--surface);
+    }
+
+    header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+    header span { color: var(--accent); }
+    header p { color: var(--text-muted); font-size: 13px; margin-left: auto; }
+
+    .container { max-width: 960px; margin: 0 auto; padding: 32px 24px; }
+
+    /* Steps */
+    .steps {
+      display: flex;
+      gap: 0;
+      margin-bottom: 32px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .step-btn {
+      flex: 1;
+      padding: 14px 16px;
+      background: var(--surface);
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.15s;
+      border-right: 1px solid var(--border);
+    }
+    .step-btn:last-child { border-right: none; }
+    .step-btn:hover { background: var(--surface2); color: var(--text); }
+    .step-btn.active { background: var(--accent); color: #fff; }
+    .step-btn .num {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700;
+    }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-title .badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      background: var(--surface2);
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* Sub-tabs */
+    .sub-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 20px;
+      background: var(--surface2);
+      padding: 4px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .sub-tab {
+      flex: 1;
+      padding: 8px 12px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: 6px;
+      transition: all 0.15s;
+    }
+    .sub-tab.active { background: var(--surface); color: var(--text); }
+    .sub-tab:hover:not(.active) { color: var(--text); }
+
+    .sub-panel { display: none; }
+    .sub-panel.active { display: block; }
+
+    /* Form elements */
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+
+    input[type="text"], input[type="url"], textarea, select {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 10px 14px;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+      margin-bottom: 14px;
+    }
+    input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+    textarea { resize: vertical; min-height: 100px; }
+    select option { background: var(--surface2); }
+
+    .field-row { display: flex; gap: 12px; }
+    .field-row > div { flex: 1; }
+
+    /* File drop zone */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 40px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.15s;
+      margin-bottom: 14px;
+      background: var(--surface2);
+    }
+    .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); background: rgba(108,99,255,0.05); }
+    .drop-zone p { color: var(--text-muted); font-size: 13px; margin-top: 8px; }
+    .drop-zone .icon { font-size: 32px; }
+    .drop-zone.has-file { border-color: var(--green); border-style: solid; }
+    .drop-zone.has-file p { color: var(--green); }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-ghost {
+      background: var(--surface2);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { color: var(--text); border-color: var(--accent); }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+    /* Focus areas chips */
+    .chips-input { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+    .chip {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 10px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .chip button {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+      padding: 0;
+    }
+    .chip button:hover { color: var(--red); }
+    .chip-add { display: flex; gap: 8px; margin-bottom: 14px; }
+    .chip-add input { margin-bottom: 0; flex: 1; }
+
+    /* Result box */
+    .result-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-top: 16px;
+    }
+    .result-box.success { border-color: var(--green); }
+    .result-box.error { border-color: var(--red); }
+
+    .result-id {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      margin: 8px 0;
+      font-family: monospace;
+      font-size: 13px;
+    }
+    .copy-btn {
+      background: none;
+      border: none;
+      color: var(--accent);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .copy-btn:hover { text-decoration: underline; }
+
+    /* Loader */
+    .loader {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Status badge */
+    .status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
+    .status.ok { color: var(--green); }
+    .status.err { color: var(--red); }
+    .status::before { content: '●'; }
+
+    /* Course display */
+    .course-header { margin-bottom: 20px; }
+    .course-header h2 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+    .course-header p { color: var(--text-muted); }
+    .course-meta { display: flex; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+    .meta-pill {
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+    .meta-pill.easy { border-color: var(--green); color: var(--green); }
+    .meta-pill.medium { border-color: var(--yellow); color: var(--yellow); }
+    .meta-pill.hard { border-color: var(--red); color: var(--red); }
+
+    .module-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+    .module-header {
+      padding: 14px 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      user-select: none;
+    }
+    .module-header:hover { background: rgba(255,255,255,0.03); }
+    .module-header h3 { font-size: 14px; font-weight: 600; }
+    .module-header .chevron { transition: transform 0.2s; color: var(--text-muted); }
+    .module-header.open .chevron { transform: rotate(180deg); }
+    .module-body { display: none; padding: 0 18px 18px; border-top: 1px solid var(--border); }
+    .module-body.open { display: block; }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--accent);
+      margin: 14px 0 8px;
+    }
+    .module-body p { color: var(--text-muted); line-height: 1.7; }
+    .module-body ul { padding-left: 18px; color: var(--text-muted); }
+    .module-body ul li { margin-bottom: 4px; }
+
+    .glossary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .glossary-item {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+    }
+    .glossary-item strong { color: var(--text); font-size: 12px; display: block; margin-bottom: 2px; }
+    .glossary-item span { color: var(--text-muted); font-size: 12px; }
+
+    code {
+      display: block;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      font-family: 'Fira Code', monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      color: #a5d6a7;
+      margin-bottom: 8px;
+    }
+
+    /* MCQ / STAR display */
+    .mcq-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 14px;
+      overflow: hidden;
+    }
+    .mcq-num {
+      background: var(--accent);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 6px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .mcq-body { padding: 16px 18px; }
+    .star-section { margin-bottom: 12px; }
+    .star-label {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
+    .star-situation { color: var(--text-muted); font-size: 13px; line-height: 1.6; }
+    .star-task { color: var(--text); font-size: 14px; font-weight: 600; }
+
+    .options { display: flex; flex-direction: column; gap: 8px; margin: 14px 0; }
+    .option {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+      background: var(--bg);
+    }
+    .option:hover { border-color: var(--accent); }
+    .option.correct { border-color: var(--green); background: rgba(76,175,130,0.08); }
+    .option.wrong { border-color: var(--red); background: rgba(240,98,146,0.08); }
+    .option-key {
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700;
+      flex-shrink: 0;
+      color: var(--text-muted);
+    }
+    .option.correct .option-key { border-color: var(--green); color: var(--green); background: rgba(76,175,130,0.15); }
+    .option.wrong .option-key { border-color: var(--red); color: var(--red); background: rgba(240,98,146,0.15); }
+    .option-text { font-size: 13px; line-height: 1.5; color: var(--text-muted); }
+
+    .result-reveal {
+      background: rgba(108,99,255,0.08);
+      border: 1px solid rgba(108,99,255,0.3);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-top: 12px;
+      font-size: 13px;
+      color: var(--text-muted);
+      display: none;
+    }
+    .result-reveal.visible { display: block; }
+    .result-reveal strong { color: var(--accent); }
+
+    .score-bar {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .score-num { font-size: 32px; font-weight: 800; color: var(--accent); }
+    .score-label { font-size: 13px; color: var(--text-muted); }
+
+    /* Misc */
+    .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+    .hint { font-size: 12px; color: var(--text-muted); margin-top: -10px; margin-bottom: 14px; }
+    .flex-between { display: flex; align-items: center; justify-content: space-between; }
+    .sources-list { list-style: none; padding: 0; }
+    .sources-list li { margin-bottom: 6px; }
+    .sources-list a { color: var(--accent); font-size: 12px; text-decoration: none; word-break: break-all; }
+    .sources-list a:hover { text-decoration: underline; }
+    .alert { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; }
+    .alert-info { background: rgba(108,99,255,0.1); border: 1px solid rgba(108,99,255,0.3); color: var(--text-muted); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>AutoCourse <span>AI</span></h1>
+  </div>
+  <p id="api-status">Checking API...</p>
+</header>
+
+<div class="container">
+
+  <!-- Step navigation -->
+  <div class="steps">
+    <button class="step-btn active" onclick="showPanel('ingest')">
+      <span class="num">1</span> Ingest Content
+    </button>
+    <button class="step-btn" onclick="showPanel('generate')">
+      <span class="num">2</span> Generate Course
+    </button>
+    <button class="step-btn" onclick="showPanel('evaluate')">
+      <span class="num">3</span> Evaluate
+    </button>
+  </div>
+
+  <!-- ─── PANEL 1: INGEST ─── -->
+  <div id="panel-ingest" class="panel active">
+    <div class="card">
+      <div class="card-title">Ingest Content <span class="badge">Step 1</span></div>
+      <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">
+        Choose how to bring in your content. You'll get a <strong>document_id</strong> to use in Step 2.
+      </p>
+
+      <div class="sub-tabs">
+        <button class="sub-tab active" onclick="showSubTab('ingest','pdf')">PDF Upload</button>
+        <button class="sub-tab" onclick="showSubTab('ingest','text')">Raw Text</button>
+        <button class="sub-tab" onclick="showSubTab('ingest','topic')">Research Topic</button>
+        <button class="sub-tab" onclick="showSubTab('ingest','youtube')">YouTube</button>
+      </div>
+
+      <!-- PDF -->
+      <div id="ingest-sub-pdf" class="sub-panel active">
+        <div class="drop-zone" id="drop-zone" onclick="document.getElementById('pdf-input').click()"
+             ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+          <div class="icon">📄</div>
+          <p id="drop-label">Click to upload or drag and drop your PDF here</p>
+        </div>
+        <input type="file" id="pdf-input" accept=".pdf" style="display:none" onchange="handleFileSelect(event)" />
+        <div>
+          <label>Title (optional)</label>
+          <input type="text" id="pdf-title" placeholder="e.g. Introduction to Machine Learning" />
+        </div>
+        <button class="btn btn-primary" onclick="ingestPDF()" id="btn-pdf">
+          Upload & Ingest
+        </button>
+      </div>
+
+      <!-- Text -->
+      <div id="ingest-sub-text" class="sub-panel">
+        <div>
+          <label>Title (optional)</label>
+          <input type="text" id="text-title" placeholder="e.g. Notes on Quantum Computing" />
+        </div>
+        <div>
+          <label>Content</label>
+          <textarea id="text-content" placeholder="Paste your text content here (minimum 50 characters)..." style="min-height:160px;"></textarea>
+        </div>
+        <button class="btn btn-primary" onclick="ingestText()" id="btn-text">Ingest Text</button>
+      </div>
+
+      <!-- Topic -->
+      <div id="ingest-sub-topic" class="sub-panel">
+        <div class="alert alert-info">
+          Perplexity will search the internet and compile a detailed research report on your topic.
+          This becomes the document for course generation.
+        </div>
+        <div>
+          <label>Topic</label>
+          <input type="text" id="topic-name" placeholder="e.g. Transformer architecture in deep learning" />
+        </div>
+        <div>
+          <label>Additional Context (optional)</label>
+          <input type="text" id="topic-details" placeholder="e.g. Focus on how it replaced RNNs in NLP tasks" />
+        </div>
+        <div>
+          <label>Focus Areas</label>
+          <div class="chip-add">
+            <input type="text" id="focus-input" placeholder="e.g. self-attention" onkeydown="if(event.key==='Enter'){addFocusArea();}" />
+            <button class="btn btn-ghost btn-sm" onclick="addFocusArea()">Add</button>
+          </div>
+          <div class="chips-input" id="focus-chips"></div>
+        </div>
+        <div>
+          <label>Title (optional)</label>
+          <input type="text" id="topic-title" placeholder="Leave blank to auto-generate" />
+        </div>
+        <button class="btn btn-primary" onclick="ingestTopic()" id="btn-topic">Research & Ingest</button>
+      </div>
+
+      <!-- YouTube -->
+      <div id="ingest-sub-youtube" class="sub-panel">
+        <div>
+          <label>YouTube URL</label>
+          <input type="url" id="yt-url" placeholder="https://www.youtube.com/watch?v=..." />
+        </div>
+        <div>
+          <label>Title (optional)</label>
+          <input type="text" id="yt-title" placeholder="Override the video title" />
+        </div>
+        <button class="btn btn-primary" onclick="ingestYouTube()" id="btn-yt">Ingest Video</button>
+      </div>
+
+      <!-- Ingest result -->
+      <div id="ingest-result" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- ─── PANEL 2: GENERATE ─── -->
+  <div id="panel-generate" class="panel">
+    <div class="card">
+      <div class="card-title">Generate Course <span class="badge">Step 2</span></div>
+      <div class="field-row">
+        <div>
+          <label>Document ID</label>
+          <input type="text" id="gen-doc-id" placeholder="Paste document_id from Step 1" />
+        </div>
+        <div style="max-width:180px;">
+          <label>Difficulty</label>
+          <select id="gen-difficulty">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+      </div>
+      <p class="hint">Course generation uses the RLM pipeline and may take 2-5 minutes for large documents.</p>
+      <button class="btn btn-primary" onclick="generateCourse()" id="btn-generate">Generate Course</button>
+    </div>
+
+    <div id="course-result" style="display:none;"></div>
+  </div>
+
+  <!-- ─── PANEL 3: EVALUATE ─── -->
+  <div id="panel-evaluate" class="panel">
+    <div class="card">
+      <div class="card-title">Generate Evaluation <span class="badge">Step 3</span></div>
+      <div>
+        <label>Course ID</label>
+        <input type="text" id="eval-course-id" placeholder="Paste course_id from Step 2" />
+      </div>
+      <p class="hint">MCQs are generated using the STAR framework — scenario-based questions covering every module.</p>
+      <button class="btn btn-primary" onclick="generateEvaluation()" id="btn-eval">Generate MCQ Quiz</button>
+    </div>
+
+    <div id="eval-result" style="display:none;"></div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+const API = '';  // empty = same origin; set to 'http://localhost:8000' if running frontend separately
+
+// ── State ──
+let selectedFile = null;
+let focusAreas = [];
+
+// ── Navigation ──
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.step-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+function showSubTab(panel, tab) {
+  document.querySelectorAll(`#ingest-sub-${panel} ~ .sub-panel, #${panel}-sub-${panel} ~ .sub-panel`).forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sub-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById(`ingest-sub-${tab}`).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+// ── API health ──
+async function checkHealth() {
+  try {
+    const r = await fetch(API + '/health');
+    const d = await r.json();
+    document.getElementById('api-status').innerHTML =
+      `<span class="status ok">API online &mdash; ${d.env}</span>`;
+  } catch {
+    document.getElementById('api-status').innerHTML =
+      `<span class="status err">API offline</span>`;
+  }
+}
+
+// ── Drag & Drop ──
+function handleDragOver(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.add('dragover');
+}
+function handleDragLeave(e) {
+  document.getElementById('drop-zone').classList.remove('dragover');
+}
+function handleDrop(e) {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (file && file.name.endsWith('.pdf')) setFile(file);
+}
+function handleFileSelect(e) {
+  if (e.target.files[0]) setFile(e.target.files[0]);
+}
+function setFile(file) {
+  selectedFile = file;
+  const dz = document.getElementById('drop-zone');
+  dz.classList.add('has-file');
+  dz.classList.remove('dragover');
+  document.getElementById('drop-label').textContent = `✓ ${file.name} (${(file.size/1024).toFixed(0)} KB)`;
+}
+
+// ── Focus area chips ──
+function addFocusArea() {
+  const input = document.getElementById('focus-input');
+  const val = input.value.trim();
+  if (!val) return;
+  focusAreas.push(val);
+  input.value = '';
+  renderChips();
+}
+function removeChip(i) {
+  focusAreas.splice(i, 1);
+  renderChips();
+}
+function renderChips() {
+  const container = document.getElementById('focus-chips');
+  container.innerHTML = focusAreas.map((a, i) =>
+    `<div class="chip">${a}<button onclick="removeChip(${i})">×</button></div>`
+  ).join('');
+}
+
+// ── Helpers ──
+function setLoading(btnId, loading, label = 'Loading...') {
+  const btn = document.getElementById(btnId);
+  if (loading) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="loader"></span> ${label}`;
+  } else {
+    btn.disabled = false;
+  }
+}
+
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text);
+  btn.textContent = 'Copied!';
+  setTimeout(() => btn.textContent = 'Copy', 1500);
+}
+
+function showIngestResult(html) {
+  const el = document.getElementById('ingest-result');
+  el.style.display = 'block';
+  el.innerHTML = html;
+}
+
+function showError(containerId, msg) {
+  const el = document.getElementById(containerId);
+  el.style.display = 'block';
+  el.innerHTML = `<div class="result-box error"><span class="status err">Error</span><p style="margin-top:8px;color:var(--text-muted)">${msg}</p></div>`;
+}
+
+// ── Ingest: PDF ──
+async function ingestPDF() {
+  if (!selectedFile) { alert('Please select a PDF file first.'); return; }
+  setLoading('btn-pdf', true, 'Uploading...');
+  const form = new FormData();
+  form.append('file', selectedFile);
+  const title = document.getElementById('pdf-title').value.trim();
+  if (title) form.append('title', title);
+  try {
+    const r = await fetch(API + '/ingest/pdf', { method: 'POST', body: form });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+    showIngestResult(renderIngestSuccess(d));
+    document.getElementById('gen-doc-id').value = d.document_id;
+  } catch(e) {
+    showIngestResult(`<div class="result-box error"><span class="status err">Error</span><p style="margin-top:8px;color:var(--text-muted)">${e.message}</p></div>`);
+  } finally {
+    document.getElementById('btn-pdf').disabled = false;
+    document.getElementById('btn-pdf').innerHTML = 'Upload & Ingest';
+  }
+}
+
+// ── Ingest: Text ──
+async function ingestText() {
+  const text = document.getElementById('text-content').value.trim();
+  if (text.length < 50) { alert('Please enter at least 50 characters.'); return; }
+  setLoading('btn-text', true, 'Ingesting...');
+  try {
+    const r = await fetch(API + '/ingest/text', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, title: document.getElementById('text-title').value.trim() || null })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+    showIngestResult(renderIngestSuccess(d));
+    document.getElementById('gen-doc-id').value = d.document_id;
+  } catch(e) {
+    showIngestResult(`<div class="result-box error"><span class="status err">Error</span><p style="margin-top:8px;color:var(--text-muted)">${e.message}</p></div>`);
+  } finally {
+    document.getElementById('btn-text').disabled = false;
+    document.getElementById('btn-text').innerHTML = 'Ingest Text';
+  }
+}
+
+// ── Ingest: Topic ──
+async function ingestTopic() {
+  const topic = document.getElementById('topic-name').value.trim();
+  if (!topic) { alert('Please enter a topic.'); return; }
+  setLoading('btn-topic', true, 'Researching...');
+  try {
+    const r = await fetch(API + '/ingest/topic', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        topic,
+        details: document.getElementById('topic-details').value.trim() || null,
+        focus_areas: focusAreas,
+        title: document.getElementById('topic-title').value.trim() || null
+      })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+    showIngestResult(renderTopicSuccess(d));
+    document.getElementById('gen-doc-id').value = d.document_id;
+  } catch(e) {
+    showIngestResult(`<div class="result-box error"><span class="status err">Error</span><p style="margin-top:8px;color:var(--text-muted)">${e.message}</p></div>`);
+  } finally {
+    document.getElementById('btn-topic').disabled = false;
+    document.getElementById('btn-topic').innerHTML = 'Research & Ingest';
+  }
+}
+
+// ── Ingest: YouTube ──
+async function ingestYouTube() {
+  const url = document.getElementById('yt-url').value.trim();
+  if (!url) { alert('Please enter a YouTube URL.'); return; }
+  setLoading('btn-yt', true, 'Transcribing...');
+  try {
+    const r = await fetch(API + '/ingest/youtube', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, title: document.getElementById('yt-title').value.trim() || null })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+    showIngestResult(renderIngestSuccess(d));
+    document.getElementById('gen-doc-id').value = d.document_id;
+  } catch(e) {
+    showIngestResult(`<div class="result-box error"><span class="status err">Error</span><p style="margin-top:8px;color:var(--text-muted)">${e.message}</p></div>`);
+  } finally {
+    document.getElementById('btn-yt').disabled = false;
+    document.getElementById('btn-yt').innerHTML = 'Ingest Video';
+  }
+}
+
+// ── Render: Ingest success ──
+function renderIngestSuccess(d) {
+  return `<div class="result-box success">
+    <span class="status ok">Ingested successfully</span>
+    <div style="margin-top:12px;">
+      <label style="margin-bottom:4px;">Document ID — use this in Step 2</label>
+      <div class="result-id">
+        <span>${d.document_id}</span>
+        <button class="copy-btn" onclick="copyText('${d.document_id}', this)">Copy</button>
+      </div>
+      <div style="display:flex;gap:16px;margin-top:8px;font-size:12px;color:var(--text-muted);">
+        <span>${d.word_count?.toLocaleString() || '—'} words</span>
+        <span>${d.source_type || d.title || ''}</span>
+        ${d.title ? `<span>${d.title}</span>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderTopicSuccess(d) {
+  const sources = d.sources?.length
+    ? `<div style="margin-top:12px;"><div class="section-label">Sources (${d.sources.length})</div>
+       <ul class="sources-list">${d.sources.map(s => `<li><a href="${s}" target="_blank">${s}</a></li>`).join('')}</ul></div>`
+    : '';
+  return `<div class="result-box success">
+    <span class="status ok">Research complete</span>
+    <div style="margin-top:12px;">
+      <label style="margin-bottom:4px;">Document ID — use this in Step 2</label>
+      <div class="result-id">
+        <span>${d.document_id}</span>
+        <button class="copy-btn" onclick="copyText('${d.document_id}', this)">Copy</button>
+      </div>
+      <div style="display:flex;gap:16px;margin-top:8px;font-size:12px;color:var(--text-muted);">
+        <span>${d.word_count?.toLocaleString() || '—'} words</span>
+        <span>${d.sources?.length || 0} sources</span>
+      </div>
+      ${sources}
+      <div style="margin-top:12px;">
+        <div class="section-label">Report Preview</div>
+        <p style="font-size:12px;color:var(--text-muted);line-height:1.7;">${d.report_preview}</p>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── Generate Course ──
+async function generateCourse() {
+  const docId = document.getElementById('gen-doc-id').value.trim();
+  const difficulty = document.getElementById('gen-difficulty').value;
+  if (!docId) { alert('Please enter a Document ID.'); return; }
+  setLoading('btn-generate', true, 'Generating course...');
+  document.getElementById('course-result').style.display = 'none';
+  try {
+    const r = await fetch(API + '/generate-course', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ document_id: docId, difficulty })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+    renderCourse(d);
+  } catch(e) {
+    showError('course-result', e.message);
+  } finally {
+    document.getElementById('btn-generate').disabled = false;
+    document.getElementById('btn-generate').innerHTML = 'Generate Course';
+  }
+}
+
+function renderCourse(d) {
+  const el = document.getElementById('course-result');
+  el.style.display = 'block';
+
+  const diffClass = d.difficulty;
+  const modules = (d.modules || []).map((m, i) => `
+    <div class="module-card">
+      <div class="module-header" onclick="toggleModule(this)">
+        <h3>${i+1}. ${m.title}</h3>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="module-body">
+        ${m.learning_objectives?.length ? `
+          <div class="section-label">Learning Objectives</div>
+          <ul>${m.learning_objectives.map(o => `<li>${o}</li>`).join('')}</ul>` : ''}
+        ${m.explanation ? `
+          <div class="section-label">Explanation</div>
+          <p>${m.explanation}</p>` : ''}
+        ${m.analogies?.length ? `
+          <div class="section-label">Analogies</div>
+          <ul>${m.analogies.map(a => `<li>${a}</li>`).join('')}</ul>` : ''}
+        ${m.examples?.length ? `
+          <div class="section-label">Examples</div>
+          <ul>${m.examples.map(e => `<li>${e}</li>`).join('')}</ul>` : ''}
+        ${m.real_world_applications?.length ? `
+          <div class="section-label">Real-World Applications</div>
+          <ul>${m.real_world_applications.map(a => `<li>${a}</li>`).join('')}</ul>` : ''}
+        ${m.code_snippets?.length ? `
+          <div class="section-label">Code Snippets</div>
+          ${m.code_snippets.map(s => `<code>${escapeHtml(s)}</code>`).join('')}` : ''}
+        ${m.common_misconceptions?.length ? `
+          <div class="section-label">Common Misconceptions</div>
+          <ul>${m.common_misconceptions.map(c => `<li>${c}</li>`).join('')}</ul>` : ''}
+        ${m.key_takeaways?.length ? `
+          <div class="section-label">Key Takeaways</div>
+          <ul>${m.key_takeaways.map(k => `<li>${k}</li>`).join('')}</ul>` : ''}
+        ${m.glossary?.length ? `
+          <div class="section-label">Glossary</div>
+          <div class="glossary-grid">${m.glossary.map(g =>
+            `<div class="glossary-item"><strong>${g.term}</strong><span>${g.definition}</span></div>`
+          ).join('')}</div>` : ''}
+      </div>
+    </div>
+  `).join('');
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="course-header">
+        <div class="flex-between">
+          <h2>${d.title}</h2>
+          <button class="copy-btn" onclick="copyText('${d.course_id}', this)" style="font-size:13px;">Copy course_id</button>
+        </div>
+        ${d.summary ? `<p style="margin-top:8px;color:var(--text-muted)">${d.summary}</p>` : ''}
+        <div class="course-meta">
+          <span class="meta-pill ${diffClass}">${diffClass.charAt(0).toUpperCase()+diffClass.slice(1)}</span>
+          <span class="meta-pill">${d.modules?.length || 0} modules</span>
+          <span class="meta-pill">ID: ${d.course_id.slice(0,8)}...</span>
+        </div>
+      </div>
+      <hr class="divider" />
+      <div style="margin-bottom:12px;">
+        <label style="margin-bottom:4px;">Course ID — use this in Step 3</label>
+        <div class="result-id">
+          <span>${d.course_id}</span>
+          <button class="copy-btn" onclick="copyText('${d.course_id}', this)">Copy</button>
+        </div>
+      </div>
+      <div id="btn-fill-eval" style="margin-bottom:16px;">
+        <button class="btn btn-ghost btn-sm" onclick="goToEval('${d.course_id}')">→ Go to Step 3: Evaluate this course</button>
+      </div>
+      ${modules}
+    </div>
+  `;
+}
+
+function toggleModule(header) {
+  header.classList.toggle('open');
+  header.nextElementSibling.classList.toggle('open');
+}
+
+function goToEval(courseId) {
+  document.getElementById('eval-course-id').value = courseId;
+  document.querySelectorAll('.step-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-evaluate').classList.add('active');
+  document.querySelectorAll('.step-btn')[2].classList.add('active');
+}
+
+// ── Evaluate ──
+async function generateEvaluation() {
+  const courseId = document.getElementById('eval-course-id').value.trim();
+  if (!courseId) { alert('Please enter a Course ID.'); return; }
+  setLoading('btn-eval', true, 'Generating MCQs...');
+  document.getElementById('eval-result').style.display = 'none';
+  try {
+    const r = await fetch(API + '/evaluate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ course_id: courseId })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+    renderEvaluation(d);
+  } catch(e) {
+    showError('eval-result', e.message);
+  } finally {
+    document.getElementById('btn-eval').disabled = false;
+    document.getElementById('btn-eval').innerHTML = 'Generate MCQ Quiz';
+  }
+}
+
+let userAnswers = {};
+let correctAnswers = {};
+
+function renderEvaluation(d) {
+  userAnswers = {};
+  correctAnswers = {};
+  d.questions.forEach((q, i) => { correctAnswers[i] = q.correct_answer; });
+
+  const el = document.getElementById('eval-result');
+  el.style.display = 'block';
+
+  const questions = d.questions.map((q, i) => `
+    <div class="mcq-card" id="mcq-${i}">
+      <div class="mcq-num">
+        <span>Q${i+1} — ${q.module_title}</span>
+        <span id="q-status-${i}"></span>
+      </div>
+      <div class="mcq-body">
+        <div class="star-section">
+          <div class="star-label">S — Situation</div>
+          <p class="star-situation">${q.situation}</p>
+        </div>
+        <div class="star-section">
+          <div class="star-label">T — Task</div>
+          <p class="star-task">${q.task}</p>
+        </div>
+        <div class="star-label">A — Action</div>
+        <div class="options" id="opts-${i}">
+          ${['A','B','C','D'].map(k => `
+            <div class="option" id="opt-${i}-${k}" onclick="selectOption(${i},'${k}')">
+              <div class="option-key">${k}</div>
+              <div class="option-text">${q.options[k]}</div>
+            </div>
+          `).join('')}
+        </div>
+        <div class="result-reveal" id="result-${i}">
+          <div class="star-label">R — Result</div>
+          <p>${q.result}</p>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="flex-between" style="margin-bottom:16px;">
+        <div>
+          <div class="card-title">${d.course_title} — Quiz <span class="badge">${d.total_questions} questions</span></div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="submitQuiz()">Submit Quiz</button>
+      </div>
+      <div id="score-display" style="display:none;"></div>
+      ${questions}
+      <div style="margin-top:20px;text-align:center;">
+        <button class="btn btn-primary" onclick="submitQuiz()">Submit & See Results</button>
+      </div>
+    </div>
+  `;
+}
+
+function selectOption(qIdx, key) {
+  if (userAnswers[qIdx] !== undefined) return; // already answered
+  userAnswers[qIdx] = key;
+  const correct = correctAnswers[qIdx];
+
+  ['A','B','C','D'].forEach(k => {
+    const opt = document.getElementById(`opt-${qIdx}-${k}`);
+    if (k === correct) opt.classList.add('correct');
+    else if (k === key && k !== correct) opt.classList.add('wrong');
+    opt.style.cursor = 'default';
+  });
+
+  document.getElementById(`result-${qIdx}`).classList.add('visible');
+  document.getElementById(`q-status-${qIdx}`).innerHTML =
+    key === correct ? '✓ Correct' : '✗ Incorrect';
+}
+
+function submitQuiz() {
+  const total = Object.keys(correctAnswers).length;
+  const answered = Object.keys(userAnswers).length;
+  const score = Object.entries(userAnswers).filter(([i, a]) => a === correctAnswers[i]).length;
+
+  // Reveal all unanswered
+  Object.keys(correctAnswers).forEach(i => {
+    if (userAnswers[i] === undefined) {
+      const correct = correctAnswers[i];
+      document.getElementById(`opt-${i}-${correct}`).classList.add('correct');
+      document.getElementById(`result-${i}`).classList.add('visible');
+    }
+  });
+
+  const pct = total > 0 ? Math.round((score / total) * 100) : 0;
+  const scoreEl = document.getElementById('score-display');
+  scoreEl.style.display = 'flex';
+  scoreEl.className = 'score-bar';
+  scoreEl.innerHTML = `
+    <div>
+      <div class="score-num">${score}/${total}</div>
+      <div class="score-label">questions correct</div>
+    </div>
+    <div style="text-align:right;">
+      <div class="score-num">${pct}%</div>
+      <div class="score-label">${pct >= 80 ? 'Excellent work!' : pct >= 60 ? 'Good effort!' : 'Keep studying!'}</div>
+    </div>
+  `;
+  scoreEl.scrollIntoView({ behavior: 'smooth' });
+}
+
+// ── Utils ──
+function escapeHtml(text) {
+  return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Init ──
+checkHealth();
+</script>
+</body>
+</html>

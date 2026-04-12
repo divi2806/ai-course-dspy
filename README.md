@@ -1,59 +1,147 @@
 # AutoCourse AI
 
-A backend system that turns raw content into structured courses. You give it a PDF, some text, or a YouTube link and it produces a course broken into modules with explanations, examples, code snippets, and key takeaways. You choose the difficulty level — easy, medium, or hard — and the system adapts the depth of content accordingly.
+An AI-powered course generation system. Give it a PDF, some text, a YouTube video, or just a topic you want to learn — and it builds a structured course with modules, explanations, analogies, real-world applications, common misconceptions, and a glossary. It then generates a STAR-format MCQ quiz so learners can test themselves on what they just read.
 
-Built with FastAPI, DSPy, and ChromaDB.
-
----
-
-## How it works
-
-1. You send content to one of the ingest endpoints (PDF upload, raw text, or YouTube URL).
-2. The system extracts text, splits it into chunks, embeds them, and stores everything in ChromaDB.
-3. You call the generate-course endpoint with the document ID and a difficulty level.
-4. A five-stage DSPy pipeline runs: it cleans the text, extracts topics, breaks down concepts, filters by difficulty, and builds the final course.
-5. The course is saved to the database and returned.
+Built with FastAPI, DSPy RLM, and Perplexity for internet research.
 
 ---
 
-## Requirements
+## What it does
 
-- Python 3.11 or higher
-- uv (package manager)
-- An LLM — OpenAI, Anthropic, or a local Ollama model
-- ffmpeg (only needed for YouTube ingestion)
+1. You bring in content — a PDF, raw text, YouTube video, or just a topic name.
+2. The system stores the full text as a document and returns a `document_id`.
+3. You call the generate-course endpoint. A DSPy RLM pipeline explores the document using an LLM + a sandboxed Python REPL (Deno + Pyodide), extracts key topics, and builds a structured course.
+4. Each module in the course contains: learning objectives, a detailed explanation, analogies, examples, real-world applications, code snippets where relevant, common misconceptions, key takeaways, and a glossary.
+5. You call the evaluate endpoint to generate MCQ questions. Each question follows the STAR schema — Situation, Task, Action (options), Result (explanation).
 
 ---
 
-## Setup
+## Running locally (the quick way)
 
-Copy the example environment file and fill in your values:
+### Prerequisites
 
+- Python 3.11+
+- [uv](https://docs.astral.sh/uv/) — `pip install uv`
+- [Deno](https://deno.land/) — `brew install deno` (macOS) or see deno.land for other platforms
+- ffmpeg — only needed for YouTube ingestion (`brew install ffmpeg`)
+
+### Setup
+
+Clone the repo and copy the environment file:
+
+```bash
+cp .env.local .env
 ```
-cp .env.example .env
-```
 
-The only value you must set is your LLM credentials. Everything else has sensible defaults.
+Open `.env` and fill in your API keys. At minimum you need an LLM provider key. See the LLM configuration section below.
 
 Install dependencies:
 
-```
+```bash
 uv sync
+```
+
+On first run, set up the Pyodide sandbox that DSPy RLM uses:
+
+```bash
+cd $(python -c "import dspy, pathlib; print(pathlib.Path(dspy.__file__).parent / 'primitives')")
+echo '{"dependencies":{"pyodide":"^0.27.0"}}' > package.json
+npm install
+deno cache --node-modules-dir=auto runner.js
+cd -
 ```
 
 Start the server:
 
-```
+```bash
 uv run uvicorn app.main:app --reload
 ```
 
-The API will be available at http://localhost:8000. Interactive docs are at http://localhost:8000/docs.
+Open your browser at **http://localhost:8000** to use the frontend. The API docs are at **http://localhost:8000/docs**.
+
+---
+
+## Running with Docker Compose
+
+This is the recommended way if you want to share the project or run it on any machine without installing Python, Deno, or Node yourself. Docker Compose handles all of that.
+
+### What Docker Compose does
+
+When you run `docker compose up`, it reads `docker-compose.yml` and does the following:
+
+1. Reads the `Dockerfile` and builds an image for the app. This installs Python, uv, Deno, Node/npm, all Python dependencies, and pre-installs the Pyodide sandbox so the RLM pipeline works without any extra setup steps.
+2. Starts a container from that image with port 8000 exposed on your machine.
+3. Reads your `.env` file and passes all the environment variables (API keys, database URL, etc.) into the container.
+4. Mounts a Docker volume for the SQLite database so your data persists across restarts.
+5. Runs a health check every 30 seconds so you can see when the app is ready.
+
+### Steps
+
+Make sure Docker Desktop is installed and running. Then:
+
+```bash
+# 1. Copy the environment file and fill in your API keys
+cp .env.local .env
+# Edit .env with your preferred editor and add your keys
+
+# 2. Build and start everything
+docker compose up
+```
+
+That is the entire setup. The first run will take a few minutes because it is building the image and installing dependencies. Subsequent runs start in seconds because Docker caches the layers.
+
+Once running, open **http://localhost:8000** in your browser.
+
+To run in the background:
+
+```bash
+docker compose up -d
+```
+
+To stop:
+
+```bash
+docker compose down
+```
+
+To stop and delete all data (including the database):
+
+```bash
+docker compose down -v
+```
+
+To rebuild after code changes:
+
+```bash
+docker compose up --build
+```
+
+### What the volumes do
+
+The `docker-compose.yml` defines two mounts:
+
+- `./data:/app/data` — maps the local `data/` folder into the container. If you ever use ChromaDB or store files locally, they go here.
+- `db-data:/app/autocourse.db` — a named Docker volume for the SQLite database. Named volumes are managed by Docker and survive container restarts. Your generated courses and evaluations are stored here.
 
 ---
 
 ## LLM configuration
 
-The system supports three providers. Set these in your `.env` file.
+Set these in your `.env` file. Only one provider is active at a time.
+
+**OpenCode Zen (recommended — access to many models via one key)**
+```
+LLM_PROVIDER=opencode
+LLM_MODEL=kimi-k2.5
+OPENCODE_API_KEY=sk-...
+```
+
+**Gemini**
+```
+LLM_PROVIDER=gemini
+LLM_MODEL=gemini-2.5-flash
+GEMINI_API_KEY=...
+```
 
 **OpenAI**
 ```
@@ -75,69 +163,120 @@ LLM_PROVIDER=ollama
 LLM_MODEL=llama3.2
 ```
 
-For Ollama, install it separately and pull a model first:
-```
+Install Ollama and pull a model first:
+```bash
 brew install ollama
 ollama pull llama3.2
 ```
 
+**Perplexity (for topic research only)**
+
+Perplexity is used only by the `/ingest/topic` endpoint. It searches the internet and compiles a research report that becomes the source document for the course.
+
+```
+PERPLEXITY_API_KEY=pplx-...
+```
+
 ---
 
-## API
+## API endpoints
 
-### Ingest content
-
-**POST /ingest/text** — send raw text
-```json
-{
-  "text": "your content here",
-  "title": "optional title"
-}
-```
+### Ingest
 
 **POST /ingest/pdf** — upload a PDF file (multipart form)
 
-**POST /ingest/youtube** — provide a YouTube video or playlist URL
+**POST /ingest/text** — send raw text
+```json
+{ "text": "your content", "title": "optional" }
+```
+
+**POST /ingest/youtube** — provide a YouTube URL
+```json
+{ "url": "https://youtube.com/watch?v=...", "title": "optional" }
+```
+
+**POST /ingest/topic** — research a topic using Perplexity
 ```json
 {
-  "url": "https://www.youtube.com/watch?v=...",
-  "title": "optional title"
+  "topic": "Transformer architecture in deep learning",
+  "details": "Focus on how attention mechanisms replaced RNNs",
+  "focus_areas": ["self-attention", "positional encoding", "BERT vs GPT"],
+  "title": "optional"
 }
 ```
 
-All three return a `document_id` you use in the next step.
+All ingest endpoints return a `document_id`.
 
-### Generate a course
+### Course generation
 
 **POST /generate-course**
 ```json
-{
-  "document_id": "the id from ingest",
-  "difficulty": "easy"
-}
+{ "document_id": "...", "difficulty": "easy" }
 ```
 
-`difficulty` must be one of `easy`, `medium`, or `hard`.
+`difficulty` must be `easy`, `medium`, or `hard`. Returns the full course including all modules.
 
-### Retrieve a course
+**GET /course/{course_id}** — retrieve a previously generated course.
 
-**GET /course/{course_id}**
+### Evaluation
 
-Returns the full course with all modules.
+**POST /evaluate**
+```json
+{ "course_id": "..." }
+```
+
+Generates STAR-format MCQ questions covering every module. The number of questions scales with module count — 4 per module for short courses, 2 per module for longer ones.
+
+**GET /evaluate/{evaluation_id}** — retrieve a previously generated evaluation.
+
+### Other
+
+**GET /health** — returns `{ "status": "ok", "env": "development" }`
+
+**GET /docs** — interactive Swagger UI for all endpoints.
+
+---
+
+## The RLM pipeline
+
+Standard LLM pipelines for course generation split a document into chunks and summarise each chunk. This works for short documents but loses context for long books or videos — each chunk is processed in isolation, so cross-cutting themes and connections between sections are missed.
+
+AutoCourse uses DSPy's RLM (Recursive Language Model) module instead. The LLM is given a sandboxed Python REPL and the full document text as a variable. It then runs multiple iterations:
+
+- Iteration 1: prints the first few thousand characters to understand structure.
+- Iterations 2-N: searches for specific topics, extracts quotes, stores findings per module.
+- Final iteration: calls SUBMIT with the complete course JSON it has built across all iterations.
+
+This means the LLM actively explores the document the way a human researcher would, rather than passively receiving pre-chunked fragments. For a 500-page book it can search by section, cross-reference topics, and pull specific passages per module.
+
+The REPL sandbox is powered by Deno and Pyodide (Python running in WebAssembly inside Deno's secure runtime). This is why Deno is a requirement.
+
+---
+
+## STAR evaluation schema
+
+MCQ questions are generated using the STAR framework:
+
+- **Situation** — a realistic scenario placing the learner in a real context
+- **Task** — what they need to figure out or decide in that situation
+- **Action** — four options (A, B, C, D) representing possible responses
+- **Result** — explanation of why the correct answer leads to the right outcome
+
+This produces application-focused questions rather than recall questions. Instead of "What does ITC stand for?", a STAR question places the learner in a scenario where they have to apply their understanding of ITC to arrive at an answer.
 
 ---
 
 ## Database
 
-SQLite is used by default and requires no setup. A file called `autocourse.db` is created automatically in the project root on first run.
+SQLite is used by default. The database file `autocourse.db` is created automatically on first run. No migrations needed — tables are created on startup.
 
-To use PostgreSQL instead, update `DATABASE_URL` in your `.env`:
+To use PostgreSQL:
 ```
 DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/autocourse
 ```
 
-When using PostgreSQL, run migrations with Alembic:
-```
+When switching to PostgreSQL, run migrations with Alembic:
+```bash
 uv run alembic upgrade head
 ```
 
@@ -145,118 +284,13 @@ uv run alembic upgrade head
 
 ## Tests
 
-### Running the tests
+Tests require no API keys and no external services. The LLM pipeline is fully mocked.
 
-Tests require no API keys, no running database, and no external services. Everything is mocked.
-
-```
+```bash
 uv run pytest
 ```
 
-Coverage reports are saved to `reports/coverage/index.html` after each run. Open it in a browser to see line-by-line coverage.
-
----
-
-### What was tested — 28 tests, all passing
-
-#### Chunker (5 tests) — `tests/test_ingestion.py`
-
-The chunker splits text into overlapping word-budget windows. These tests verify the core splitting logic works correctly before anything touches an LLM or database.
-
-| Test | What it checks |
-|---|---|
-| `test_basic_split` | Text longer than the chunk size produces multiple chunks, none exceeding the word budget |
-| `test_overlap_carries_words` | The tail of one chunk appears at the head of the next, confirming overlap works |
-| `test_single_short_text` | Text shorter than the chunk size comes back as a single unchanged chunk |
-| `test_empty_text_returns_empty` | Empty input returns an empty list, no crash |
-| `test_very_long_single_sentence` | A sentence longer than the chunk size is hard-split rather than dropped |
-
-#### Text ingester (5 tests) — `tests/test_ingestion.py`
-
-Tests the raw text ingestion path end to end, from input string to `IngestedContent` object.
-
-| Test | What it checks |
-|---|---|
-| `test_returns_ingested_content` | A valid text input produces a correct `IngestedContent` with `source_type=text` and at least one chunk |
-| `test_default_title` | When no title is given, it defaults to "Untitled Document" |
-| `test_empty_text_raises` | Whitespace-only input raises a `ValueError` with a clear message |
-| `test_source_ref_is_raw` | The `source_ref` field is set to `"raw"` for text inputs |
-| `test_chunk_count_matches` | The number of chunks reported matches the actual list length |
-
-#### PDF ingester (2 tests) — `tests/test_ingestion.py`
-
-| Test | What it checks |
-|---|---|
-| `test_missing_file_raises` | A path that does not exist raises `FileNotFoundError` |
-| `test_valid_pdf` | A real PDF created in the test is ingested and produces at least one chunk with the correct `source_type` |
-
-#### DSPy pipeline (5 tests) — `tests/test_pipeline.py`
-
-The LLM is fully mocked here. Each DSPy `ChainOfThought` step is replaced with a `MagicMock` so the logic of the pipeline can be tested without any API calls.
-
-| Test | What it checks |
-|---|---|
-| `test_pipeline_produces_course` | All five pipeline stages are called in order and the final output is a correctly shaped course dict |
-| `test_parse_modules_valid` | A well-formed list of module dicts is converted into validated `Module` objects |
-| `test_parse_modules_skips_malformed` | A malformed module in the list is silently skipped without crashing the whole response |
-| `test_safe_parse_json_strips_fences` | LLM output wrapped in markdown code fences (```json ... ```) is correctly unwrapped and parsed |
-| `test_safe_parse_json_returns_fallback_on_invalid` | Completely invalid JSON returns the specified fallback value instead of raising an exception |
-
-#### API endpoints (11 tests) — `tests/test_api.py`
-
-Full end-to-end integration tests using an in-memory SQLite database and an HTTP test client. The vector store and LLM pipeline are mocked so no external services are needed.
-
-| Test | What it checks |
-|---|---|
-| `test_health` | `GET /health` returns 200 with `status: ok` |
-| `test_ingest_text_success` | `POST /ingest/text` with valid text returns 201, a `document_id`, correct `source_type`, and chunk count |
-| `test_ingest_text_too_short` | Text under 50 characters is rejected with 422 at the schema level |
-| `test_ingest_text_empty` | Text that is only whitespace is rejected with 400 |
-| `test_ingest_pdf_wrong_extension` | Uploading a non-PDF file to `POST /ingest/pdf` returns 422 |
-| `test_ingest_pdf_success` | A real PDF file created in the test is accepted and returns 201 with `source_type: pdf` |
-| `test_generate_course_success` | Full ingest → generate flow returns 201 with correct `document_id`, `difficulty`, `title`, and modules |
-| `test_generate_course_unknown_document` | Generating a course for a non-existent document ID returns 404 |
-| `test_generate_course_invalid_difficulty` | A difficulty value outside easy/medium/hard returns 422 |
-| `test_get_course_success` | Full ingest → generate → retrieve flow: the saved course is returned correctly by its ID |
-| `test_get_course_not_found` | Fetching a course with an unknown ID returns 404 |
-
----
-
-### What is not tested and why
-
-| Area | Why it is not covered |
-|---|---|
-| YouTube ingestion | Requires yt-dlp to download real audio and Whisper to transcribe it. Both need network access and significant runtime. The service code is written and works but is excluded from automated tests. |
-| Real LLM responses | The DSPy pipeline stages are all mocked. Testing with a real LLM would require an API key, cost money, produce non-deterministic outputs, and make tests slow and flaky. |
-| ChromaDB vector operations | The vector store is mocked in all tests via `conftest.py`. Real ChromaDB tests would require the full embedding model to be loaded on every test run. |
-| PostgreSQL-specific behaviour | All tests run against SQLite. Behaviour that differs between databases (e.g. enum handling, concurrent writes) is not covered. |
-| Alembic migrations | Migration scripts are not tested. They should be verified manually against a real PostgreSQL instance before deploying. |
-
----
-
-### Coverage summary
-
-After the last run:
-
-```
-Total coverage: 69%
-
-100%  app/models/db.py
-100%  app/models/schemas.py
-100%  app/services/ingestion/text_ingester.py
- 88%  app/services/ingestion/pdf_ingester.py
- 85%  app/main.py
- 82%  app/core/config.py
- 82%  app/utils/chunker.py
- 75%  app/api/routes/course.py
- 75%  app/services/pipeline/course_pipeline.py
- 21%  app/services/ingestion/youtube_ingester.py   (no real YouTube tests)
- 40%  app/services/vector_store.py                 (mocked in all tests)
- 40%  app/services/course_generator.py             (LLM call is mocked)
- 57%  app/core/database.py                         (real DB init not exercised)
-```
-
-The low-coverage files are intentional — they are the parts that require live external services (LLM, ChromaDB, YouTube). The application logic that can be verified without those services sits at or above 75%.
+Coverage reports are saved to `reports/coverage/index.html`.
 
 ---
 
@@ -264,32 +298,30 @@ The low-coverage files are intentional — they are the parts that require live 
 
 ```
 app/
-  main.py                      entry point, app setup
+  main.py                         entry point, FastAPI app setup, frontend serving
   core/
-    config.py                  all settings loaded from .env
-    database.py                async SQLAlchemy engine and session
+    config.py                     all settings loaded from .env
+    database.py                   async SQLAlchemy engine and session
   models/
-    db.py                      Document and Course database models
-    schemas.py                 Pydantic request and response types
+    db.py                         Document, Course, Evaluation database models
+    schemas.py                    Pydantic request and response types
   services/
     ingestion/
-      pdf_ingester.py          extracts text from PDFs using PyMuPDF
-      text_ingester.py         handles raw text input
-      youtube_ingester.py      downloads and transcribes YouTube audio
+      pdf_ingester.py             extracts text from PDFs using PyMuPDF
+      text_ingester.py            handles raw text input
+      youtube_ingester.py         downloads and transcribes YouTube audio
+      topic_ingester.py           researches topics via Perplexity sonar-pro
     pipeline/
-      signatures.py            DSPy typed signatures for each pipeline stage
-      course_pipeline.py       the CoursePipeline module and LLM setup
-    vector_store.py            ChromaDB wrapper for storing and retrieving chunks
-    course_generator.py        orchestrates pipeline, persistence, and response
+      rlm_pipeline.py             DSPy RLM setup, CourseSignature, Deno interpreter
+    course_generator.py           orchestrates pipeline, parses output, saves to DB
+    evaluation_generator.py       generates STAR MCQs from course modules
   api/
     routes/
-      ingest.py                POST /ingest/pdf, /text, /youtube
-      course.py                POST /generate-course, GET /course/{id}
-  utils/
-    chunker.py                 sentence-aware sliding window text chunker
-tests/
-  conftest.py                  shared fixtures, in-memory DB, mocked vector store
-  test_ingestion.py            unit tests for chunker and ingesters
-  test_pipeline.py             unit tests for DSPy pipeline with mocked LLM
-  test_api.py                  integration tests for all endpoints
+      ingest.py                   POST /ingest/pdf, /text, /youtube, /topic
+      course.py                   POST /generate-course, GET /course/{id}
+      evaluate.py                 POST /evaluate, GET /evaluate/{id}
+frontend/
+  index.html                      single-page UI for all endpoints
+Dockerfile                        container image definition
+docker-compose.yml                one-command local deployment
 ```

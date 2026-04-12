@@ -68,3 +68,10 @@ class TestRLMPipeline:
     def test_safe_parse_json_fallback_on_invalid(self):
         from app.services.pipeline.rlm_pipeline import _safe_parse_json
         assert _safe_parse_json("not json", fallback=[]) == []
+
+    def test_safe_parse_json_ast_literal_eval_fallback(self):
+        """When LLM returns a Python dict literal (single quotes), ast.literal_eval recovers it."""
+        from app.services.pipeline.rlm_pipeline import _safe_parse_json
+        python_literal = "{'key': 'value', 'num': 42}"
+        result = _safe_parse_json(python_literal)
+        assert result == {"key": "value", "num": 42}

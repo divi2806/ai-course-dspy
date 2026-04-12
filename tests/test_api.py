@@ -214,3 +214,177 @@ async def test_get_course_success(client: AsyncClient):
 async def test_get_course_not_found(client: AsyncClient):
     resp = await client.get("/course/does-not-exist")
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Topic ingestion
+# ---------------------------------------------------------------------------
+
+SAMPLE_INGESTED_CONTENT = {
+    "source_type": "text",
+    "source_ref": "perplexity:sonar-pro:Transformers",
+    "title": "Research Report: Transformers",
+    "full_text": "Transformers are a deep learning architecture. " * 60,
+}
+
+
+@pytest.mark.asyncio
+async def test_ingest_topic_no_api_key(client: AsyncClient):
+    """Returns 503 when PERPLEXITY_API_KEY is not set."""
+    with patch("app.api.routes.ingest.settings") as mock_settings:
+        mock_settings.perplexity_api_key = None
+        resp = await client.post(
+            "/ingest/topic",
+            json={"topic": "Transformer architecture"},
+        )
+    assert resp.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_ingest_topic_success(client: AsyncClient):
+    """Happy-path: mocked Perplexity call returns a document_id."""
+    from app.models.schemas import IngestedContent
+
+    fake_content = IngestedContent(**SAMPLE_INGESTED_CONTENT)
+    fake_citations = ["https://arxiv.org/abs/1706.03762"]
+
+    with (
+        patch("app.api.routes.ingest.settings") as mock_settings,
+        patch(
+            "app.api.routes.ingest.ingest_topic",
+            return_value=(fake_content, fake_citations),
+        ),
+    ):
+        mock_settings.perplexity_api_key = "pplx-test-key"
+        resp = await client.post(
+            "/ingest/topic",
+            json={
+                "topic": "Transformer architecture",
+                "details": "Focus on self-attention",
+                "focus_areas": ["attention", "positional encoding"],
+            },
+        )
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert "document_id" in data
+    assert data["title"] == "Research Report: Transformers"
+    assert data["sources"] == fake_citations
+    assert data["word_count"] > 0
+
+
+@pytest.mark.asyncio
+async def test_ingest_topic_api_error(client: AsyncClient):
+    """Perplexity API failure is surfaced as 502."""
+    with (
+        patch("app.api.routes.ingest.settings") as mock_settings,
+        patch(
+            "app.api.routes.ingest.ingest_topic",
+            side_effect=RuntimeError("Perplexity API error 429: rate limited"),
+        ),
+    ):
+        mock_settings.perplexity_api_key = "pplx-test-key"
+        resp = await client.post(
+            "/ingest/topic",
+            json={"topic": "Transformer architecture"},
+        )
+    assert resp.status_code == 502
+
+
+# ---------------------------------------------------------------------------
+# Evaluation (MCQ generation)
+# ---------------------------------------------------------------------------
+
+SAMPLE_MCQ_QUESTIONS = [
+    {
+        "situation": "A student is learning about dynamic typing in Python.",
+        "task": "Which of the following best describes how Python handles variable types?",
+        "options": {
+            "A": "Types are declared at compile time.",
+            "B": "Types are inferred at runtime and can change.",
+            "C": "Every variable must have a type annotation.",
+            "D": "Python uses static typing by default.",
+        },
+        "correct_answer": "B",
+        "result": "Python is dynamically typed — variables do not need type declarations.",
+    }
+]
+
+
+def _mock_mcq_generator(questions: list[dict]):
+    """Patch the ChainOfThought MCQ generator to return fixed questions."""
+    import json
+
+    mock_pred = MagicMock()
+    mock_pred.questions_json = json.dumps(questions)
+    return patch(
+        "app.services.evaluation_generator._mcq_generator",
+        return_value=mock_pred,
+    )
+
+
+async def _create_course(client: AsyncClient) -> str:
+    """Helper: ingest text and generate a course; return course_id."""
+    ingest_resp = await client.post(
+        "/ingest/text", json={"text": SAMPLE_TEXT, "title": "Eval Test Doc"}
+    )
+    assert ingest_resp.status_code == 201
+    doc_id = ingest_resp.json()["document_id"]
+
+    with _mock_rlm(SAMPLE_COURSE):
+        gen_resp = await client.post(
+            "/generate-course",
+            json={"document_id": doc_id, "difficulty": "easy"},
+        )
+    assert gen_resp.status_code == 201
+    return gen_resp.json()["course_id"]
+
+
+@pytest.mark.asyncio
+async def test_evaluate_success(client: AsyncClient):
+    """POST /evaluate generates MCQ questions for a valid course."""
+    course_id = await _create_course(client)
+
+    with _mock_mcq_generator(SAMPLE_MCQ_QUESTIONS):
+        resp = await client.post("/evaluate", json={"course_id": course_id})
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["course_id"] == course_id
+    assert "evaluation_id" in data
+    assert data["total_questions"] == 1
+    q = data["questions"][0]
+    assert q["correct_answer"] == "B"
+    assert q["module_title"] == "Variables and Types"
+
+
+@pytest.mark.asyncio
+async def test_evaluate_course_not_found(client: AsyncClient):
+    """POST /evaluate returns 404 for an unknown course_id."""
+    resp = await client.post("/evaluate", json={"course_id": "does-not-exist"})
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_evaluation_success(client: AsyncClient):
+    """GET /evaluate/{id} retrieves a previously generated evaluation."""
+    course_id = await _create_course(client)
+
+    with _mock_mcq_generator(SAMPLE_MCQ_QUESTIONS):
+        post_resp = await client.post("/evaluate", json={"course_id": course_id})
+    assert post_resp.status_code == 201
+    evaluation_id = post_resp.json()["evaluation_id"]
+
+    get_resp = await client.get(f"/evaluate/{evaluation_id}")
+    assert get_resp.status_code == 200
+    data = get_resp.json()
+    assert data["evaluation_id"] == evaluation_id
+    assert data["course_id"] == course_id
+    assert data["total_questions"] == 1
+
+
+@pytest.mark.asyncio
+async def test_get_evaluation_not_found(client: AsyncClient):
+    """GET /evaluate/{id} returns 404 for an unknown evaluation_id."""
+    resp = await client.get("/evaluate/does-not-exist")
+    assert resp.status_code == 404
