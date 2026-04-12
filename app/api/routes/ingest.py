@@ -5,13 +5,21 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.db import Document
-from app.models.schemas import IngestResponse, IngestTextRequest, IngestYouTubeRequest
-from app.services.ingestion import ingest_pdf, ingest_text, ingest_youtube
+from app.models.schemas import (
+    IngestResponse,
+    IngestTextRequest,
+    IngestYouTubeRequest,
+    IngestTopicRequest,
+    TopicIngestResponse,
+)
+from app.services.ingestion import ingest_pdf, ingest_text, ingest_topic, ingest_youtube
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/ingest", tags=["Ingestion"])
+settings = get_settings()
 
 
 async def _persist(content, db: AsyncSession) -> Document:
@@ -99,4 +107,44 @@ async def ingest_youtube_endpoint(
         title=doc.title,
         word_count=len(doc.content.split()),
         message="YouTube content ingested successfully.",
+    )
+
+
+@router.post("/topic", response_model=TopicIngestResponse, status_code=status.HTTP_201_CREATED)
+async def ingest_topic_endpoint(
+    body: IngestTopicRequest,
+    db: AsyncSession = Depends(get_db),
+) -> TopicIngestResponse:
+    """
+    Research a topic using Perplexity and store the report as a document.
+    Returns a document_id you can immediately pass to /generate-course.
+    No existing material needed — just describe what you want to learn.
+    """
+    if not settings.perplexity_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="PERPLEXITY_API_KEY is not configured.",
+        )
+
+    try:
+        content, citations = await ingest_topic(
+            topic=body.topic,
+            api_key=settings.perplexity_api_key,
+            details=body.details,
+            focus_areas=body.focus_areas,
+            title=body.title,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+
+    doc = await _persist(content, db)
+    preview = doc.content[:500] + ("..." if len(doc.content) > 500 else "")
+
+    return TopicIngestResponse(
+        document_id=doc.id,
+        title=doc.title or body.topic,
+        word_count=len(doc.content.split()),
+        sources=citations,
+        report_preview=preview,
+        message=f"Research complete. {len(citations)} sources found. Use document_id with /generate-course.",
     )

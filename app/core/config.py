@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     opencode_api_key: str = Field(default="", alias="OPENCODE_API_KEY")
     opencode_base_url: str = "https://opencode.ai/zen/v1"
     ollama_base_url: str = "http://localhost:11434"
+    perplexity_api_key: str = Field(default="", alias="PERPLEXITY_API_KEY")
 
     # Database
     database_url: str = "sqlite+aiosqlite:///./autocourse.db"

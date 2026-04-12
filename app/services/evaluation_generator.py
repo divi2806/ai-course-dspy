@@ -1,6 +1,5 @@
 import json
 import logging
-from typing import Literal
 
 import dspy
 from sqlalchemy import select
@@ -14,34 +13,36 @@ log = logging.getLogger(__name__)
 
 class MCQSignature(dspy.Signature):
     """
-    You are an expert educator creating a high-quality MCQ quiz for a course module.
+    You are an expert educator creating scenario-based MCQ questions using the STAR framework.
 
-    You are given rich module content: explanation, analogies, examples, real-world
-    applications, common misconceptions, key takeaways, and glossary terms.
+    STAR means every question must have four parts:
+      S — Situation: a realistic, specific scenario the learner is placed in (2-3 sentences).
+                     Ground it in real-world context drawn from the module content.
+      T — Task: a single clear question asking what the learner must determine or decide
+                in that situation.
+      A — Action: exactly 4 options (A, B, C, D). One is correct. The other three are
+                  plausible distractors that reflect real misconceptions or common wrong answers.
+      R — Result: 1-2 sentences explaining why the correct option is right and what goes
+                  wrong with the distractors.
 
-    Use ALL of this content to write questions that test genuine understanding:
-    - Draw questions from misconceptions (test if learner avoids the wrong mental model)
-    - Draw questions from real-world applications (can they apply the concept?)
-    - Draw questions from glossary terms (do they know the precise definition?)
-    - Draw questions from examples (do they understand why the example illustrates the concept?)
-    - Vary types: definition, application, comparison, cause-and-effect, misconception-busting
-
-    For each question:
-    - Write a clear, unambiguous question stem
-    - Provide exactly 4 options (A, B, C, D) — one correct, three plausible distractors
-    - Distractors should reflect common wrong answers or misconceptions, not random noise
-    - Write a 1-2 sentence explanation of why the correct answer is right
+    Use ALL available module content when writing questions:
+      - Use real_world_applications and examples to ground the Situation
+      - Use common_misconceptions to design distractors that feel plausible
+      - Use glossary terms to create definition-application hybrids (not just "define X")
+      - Use analogies to build intuition-testing questions
+      - Vary question types: cause-and-effect, diagnosis, decision-making, comparison
 
     Return a JSON array with EXACTLY these keys per object:
     [
       {
-        "question": "...",
+        "situation": "...",
+        "task": "...",
         "options": {"A": "...", "B": "...", "C": "...", "D": "..."},
-        "correct_answer": "A",
-        "explanation": "..."
+        "correct_answer": "B",
+        "result": "..."
       }
     ]
-    No markdown fences. Valid JSON only.
+    No markdown fences. Valid JSON only. Double quotes throughout.
     """
 
     module_title: str = dspy.InputField(desc="Title of the course module")
@@ -52,9 +53,12 @@ class MCQSignature(dspy.Signature):
     common_misconceptions: str = dspy.InputField(desc="Common misconceptions and their corrections")
     key_takeaways: str = dspy.InputField(desc="Key takeaways from the module")
     glossary: str = dspy.InputField(desc="Key terms and definitions introduced in the module")
-    num_questions: int = dspy.InputField(desc="Number of MCQ questions to generate")
+    num_questions: int = dspy.InputField(desc="Number of STAR MCQ questions to generate")
     questions_json: str = dspy.OutputField(
-        desc='JSON array of MCQ objects with keys: question, options (A/B/C/D), correct_answer, explanation'
+        desc=(
+            'JSON array of STAR MCQ objects with keys: '
+            'situation, task, options (A/B/C/D), correct_answer, result'
+        )
     )
 
 
@@ -90,7 +94,8 @@ def _build_mcq_question(raw: dict, module_title: str) -> MCQQuestion | None:
         opts = raw.get("options", {})
         return MCQQuestion(
             module_title=module_title,
-            question=raw["question"],
+            situation=raw["situation"],
+            task=raw["task"],
             options=MCQOption(
                 A=opts.get("A", ""),
                 B=opts.get("B", ""),
@@ -98,7 +103,7 @@ def _build_mcq_question(raw: dict, module_title: str) -> MCQQuestion | None:
                 D=opts.get("D", ""),
             ),
             correct_answer=raw["correct_answer"].upper(),
-            explanation=raw.get("explanation", ""),
+            result=raw.get("result", ""),
         )
     except Exception as exc:
         log.warning("Skipping malformed MCQ question: %s", exc)
@@ -140,7 +145,7 @@ async def generate_evaluation(
             log.warning("Skipping module '%s' — no content to generate questions from", title)
             continue
 
-        log.info("Generating %d MCQs for module: %s", num_q, title)
+        log.info("Generating %d STAR MCQs for module: %s", num_q, title)
         try:
             pred = _mcq_generator(
                 module_title=title,
@@ -169,7 +174,7 @@ async def generate_evaluation(
     await db.flush()
 
     log.info(
-        "Evaluation %s created for course %s (%d questions)",
+        "Evaluation %s created for course %s (%d STAR questions)",
         evaluation.id, course_id, len(all_questions),
     )
 
@@ -201,10 +206,11 @@ async def get_evaluation(evaluation_id: str, db: AsyncSession) -> EvaluationResp
             opts = raw["options"]
             questions.append(MCQQuestion(
                 module_title=raw["module_title"],
-                question=raw["question"],
+                situation=raw["situation"],
+                task=raw["task"],
                 options=MCQOption(**opts),
                 correct_answer=raw["correct_answer"],
-                explanation=raw["explanation"],
+                result=raw["result"],
             ))
         except Exception as exc:
             log.warning("Skipping malformed stored question: %s", exc)

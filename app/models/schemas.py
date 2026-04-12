@@ -8,6 +8,22 @@ from pydantic import BaseModel, Field
 # Ingestion
 # ---------------------------------------------------------------------------
 
+class IngestTopicRequest(BaseModel):
+    topic: str = Field(..., min_length=3, description="Topic to research and generate a course on")
+    details: str | None = Field(None, description="Additional context or scope for the research")
+    focus_areas: list[str] = Field(default_factory=list, description="Specific subtopics or angles to focus on")
+    title: str | None = Field(None, description="Optional title override for the document")
+
+
+class TopicIngestResponse(BaseModel):
+    document_id: str
+    title: str
+    word_count: int
+    sources: list[str]
+    report_preview: str
+    message: str
+
+
 class IngestTextRequest(BaseModel):
     text: str = Field(..., min_length=50, description="Raw text content to ingest")
     title: str | None = Field(None, description="Optional document title")
@@ -82,10 +98,11 @@ class MCQOption(BaseModel):
 
 class MCQQuestion(BaseModel):
     module_title: str
-    question: str
-    options: MCQOption
+    situation: str      # S — real-world context/scenario
+    task: str           # T — what the learner must determine
+    options: MCQOption  # A — four possible actions/answers
     correct_answer: Literal["A", "B", "C", "D"]
-    explanation: str
+    result: str         # R — why the correct answer leads to the right outcome
 
 
 class EvaluationResponse(BaseModel):
